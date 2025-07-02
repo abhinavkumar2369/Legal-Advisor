@@ -30,8 +30,10 @@ try:
     import tempfile
     from utils.voice_assistant import record_audio, save_audio_to_wav, transcribe_audio, speak_text
     VOICE_AVAILABLE = True
-except ImportError:
-    st.info("Voice features disabled due to missing dependencies. Install sounddevice, scipy, and SpeechRecognition to enable voice features.")
+except (ImportError, OSError) as e:
+    # OSError catches PortAudio library not found
+    # ImportError catches missing packages
+    pass  # Voice features will be disabled
 
 # Optional language detection
 try:
@@ -330,7 +332,27 @@ def voice_control_ui():
 
     if not VOICE_AVAILABLE:
         st.warning("🔇 Voice features are disabled due to missing dependencies.")
-        st.info("To enable voice features, install: sounddevice, scipy, SpeechRecognition, pyttsx3")
+        with st.expander("ℹ️ How to enable voice features"):
+            st.markdown("""
+            **For Cloud Deployment (Streamlit Cloud):**
+            - Voice features are not supported in web environments
+            - Use the text-based Q&A instead
+            
+            **For Local Development:**
+            ```bash
+            # Install audio dependencies
+            pip install sounddevice SpeechRecognition pyttsx3
+            
+            # On Linux, you may also need:
+            sudo apt-get install portaudio19-dev python3-dev
+            
+            # On macOS:
+            brew install portaudio
+            
+            # On Windows:
+            conda install portaudio  # Recommended
+            ```
+            """)
         return
 
     if 'voice_enabled' not in st.session_state:
@@ -400,6 +422,10 @@ def voice_control_ui():
 def main():
     st.title("⚖️ Legal Ease AI")
     st.markdown("**AI-Powered Legal Document Analysis & Summary Generator**")
+    
+    # Show voice feature status on startup
+    if not VOICE_AVAILABLE:
+        st.info("ℹ️ Voice features are disabled (audio libraries not available). All other features are fully functional.")
 
     # Sidebar for settings and model configuration
     with st.sidebar:
