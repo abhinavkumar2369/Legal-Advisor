@@ -2,6 +2,14 @@ import streamlit as st
 import os
 import time
 from datetime import datetime
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    st.info("python-dotenv not installed. Using system environment variables only.")
+
 from utils.parser import parse_document
 try:
     from utils.embedder import DocumentEmbedder
@@ -397,31 +405,53 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
 
-        # Model path input
+        # API Key Configuration
+        st.subheader("🔑 API Configuration")
+        
+        # Check if API key is available from environment
+        env_api_key = os.getenv('GEMINI_API_KEY')
+        if env_api_key:
+            st.success("✅ API key loaded from environment")
+            api_key_input = env_api_key
+        else:
+            st.warning("⚠️ No API key found in environment")
+            api_key_input = st.text_input(
+                "Gemini API Key",
+                type="password",
+                help="Enter your Google Gemini API key. Get it from Google AI Studio."
+            )
+        
+        # Initialize or update agent with API key
+        if api_key_input:
+            if 'agent' not in st.session_state or st.session_state.agent is None:
+                agent = LegalAgent(gemini_api_key=api_key_input)
+                if st.session_state.embedder:
+                    agent.set_retriever(st.session_state.embedder)
+                st.session_state.agent = agent
+        
+        st.divider()
+
+        # Model path input (keeping for backward compatibility)
+        st.subheader("🤖 Local Model (Optional)")
         model_path = st.text_input(
-            "Model Path (Optional)", 
-            value="models/mistral-7b-instruct-v0.1.Q4_K_M.gguf",
-            help="Path to your local LLM model file"
+            "Local Model Path", 
+            value="",
+            help="Path to your local LLM model file (optional - Gemini AI is the default)"
         )
 
-        if st.button("Load Model"):
-            with st.spinner("Loading model..."):
-                try:
-                    agent = LegalAgent(model_path)
-                    if st.session_state.embedder:
-                        agent.set_retriever(st.session_state.embedder)
-                    st.session_state.agent = agent
-                    st.success("Model loaded successfully!")
-                except Exception as e:
-                    st.error(f"Error loading model: {str(e)}")
+        if st.button("Load Local Model") and model_path:
+            st.info("Local model loading not implemented in this version. Using Gemini AI.")
 
         st.divider()
 
         # Status indicators
+        st.subheader("📊 Status")
         if st.session_state.agent and st.session_state.agent.model:
-            st.success("🤖 Model: Ready")
+            st.success("🤖 Gemini AI: Connected")
         else:
-            st.warning("🤖 Model: Not loaded (Basic features only)")
+            st.warning("🤖 Gemini AI: Not connected")
+            if not os.getenv('GEMINI_API_KEY') and not api_key_input:
+                st.info("💡 Add your API key above to enable AI features")
 
         if st.session_state.document_processed:
             st.success("📄 Document: Processed")

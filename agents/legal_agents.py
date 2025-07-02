@@ -6,7 +6,8 @@ import os
 
 class LegalAgent:
     def __init__(self, gemini_api_key: Optional[str] = None, model_name: str = "gemini-1.5-flash"):
-        self.api_key = "AIzaSyCMj61UBLHofV64xM3V7dh3195euMX7NDc"
+        # Get API key from environment variable or parameter
+        self.api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
         self.model_name = model_name
         self.model = None
         self.retriever = None
