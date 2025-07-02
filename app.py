@@ -3,16 +3,35 @@ import os
 import time
 from datetime import datetime
 from utils.parser import parse_document
-from utils.embedder import DocumentEmbedder
+try:
+    from utils.embedder import DocumentEmbedder
+except ImportError:
+    from utils.embedder_fallback import DocumentEmbedder
+    st.warning("Using fallback TF-IDF embedder due to dependency issues")
 from utils.glossary import LegalGlossary
 from agents.legal_agents import LegalAgent
 import json
-import sounddevice as sd
-import numpy as np
-import scipy.io.wavfile as wav
-import speech_recognition as sr
-import tempfile
-from utils.voice_assistant import record_audio, save_audio_to_wav, transcribe_audio, speak_text
+
+# Optional imports for voice features
+VOICE_AVAILABLE = False
+try:
+    import sounddevice as sd
+    import numpy as np
+    import scipy.io.wavfile as wav
+    import speech_recognition as sr
+    import tempfile
+    from utils.voice_assistant import record_audio, save_audio_to_wav, transcribe_audio, speak_text
+    VOICE_AVAILABLE = True
+except ImportError:
+    st.info("Voice features disabled due to missing dependencies. Install sounddevice, scipy, and SpeechRecognition to enable voice features.")
+
+# Optional language detection
+try:
+    from langdetect import detect
+    LANGDETECT_AVAILABLE = True
+except ImportError:
+    LANGDETECT_AVAILABLE = False
+    st.info("Language detection disabled. Install langdetect to enable this feature.")
 
 
 
@@ -268,17 +287,24 @@ STATISTICS:
                 mime="text/plain"
             )
 def record_audio(duration=5, fs=44100):
+    if not VOICE_AVAILABLE:
+        st.error("Voice features not available")
+        return None, None
     st.info("🎤 Recording... Speak now!")
     audio = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
     sd.wait()
     return audio, fs
 
 def save_wav(audio, fs):
+    if not VOICE_AVAILABLE:
+        return None
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
     wav.write(tmp.name, fs, audio)
     return tmp.name
 
 def transcribe_audio(file_path):
+    if not VOICE_AVAILABLE:
+        return "Voice features not available"
     recognizer = sr.Recognizer()
     with sr.AudioFile(file_path) as source:
         audio_data = recognizer.record(source)
@@ -293,6 +319,11 @@ from langdetect import detect  # <- Add at the top
 
 def voice_control_ui():
     st.header("🎤 Voice Assistant")
+
+    if not VOICE_AVAILABLE:
+        st.warning("🔇 Voice features are disabled due to missing dependencies.")
+        st.info("To enable voice features, install: sounddevice, scipy, SpeechRecognition, pyttsx3")
+        return
 
     if 'voice_enabled' not in st.session_state:
         st.session_state.voice_enabled = False
@@ -326,8 +357,13 @@ def voice_control_ui():
                 st.success("📝 You said:")
                 st.write(f"**{command}**")
 
-                # 🆕 Step 3.5: Detect Language
-                language = detect(command)
+                # Step 3.5: Detect Language (if available)
+                language = 'en'  # default
+                if LANGDETECT_AVAILABLE:
+                    try:
+                        language = detect(command)
+                    except:
+                        language = 'en'
 
                 # Step 4: Ask LLM
                 if st.session_state.agent and st.session_state.agent.model:
@@ -336,16 +372,12 @@ def voice_control_ui():
                         st.markdown("**🤖 Answer:**")
                         st.write(answer)
 
-                        # 🆕 Speak the answer in detected language (only if Hindi or English for now)
-                        if language == 'hi':
-                            from translate import Translator
-                            translator = Translator(to_lang="hi")
-                            translated_answer = translator.translate(answer)
-                            st.markdown("**🔁 Translated (Hindi):**")
-                            st.write(translated_answer)
-                            speak_text(translated_answer)
-                        else:
-                            speak_text(answer)
+                        # Speak the answer
+                        if VOICE_AVAILABLE:
+                            try:
+                                speak_text(answer)
+                            except:
+                                st.info("Text-to-speech not available")
                 else:
                     st.warning("🤖 Please load a model to use voice Q&A.")
             except Exception as e:
